@@ -1,0 +1,26 @@
+# render.yaml — Blueprint Render pour DevOnboard Copilot
+# Déploie le backend FastAPI en une commande depuis le dashboard Render :
+# New → Blueprint → pointer ce repo → Render lit ce fichier automatiquement.
+#
+# URL backend après déploiement : https://devonboard-backend.onrender.com
+# (mettre cette URL dans NEXT_PUBLIC_API_URL sur Vercel)
+
+services:
+  - type: web
+    name: devonboard-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # À renseigner manuellement dans le dashboard Render
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: CHROMA_PERSIST_DIR
+        value: /data/chroma
+    disk:
+      name: chroma-data
+      mountPath: /data/chroma
+      sizeGB: 1
+    healthCheckPath: /health

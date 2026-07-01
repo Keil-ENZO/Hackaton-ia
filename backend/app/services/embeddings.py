@@ -1,25 +1,23 @@
-"""Génération d'embeddings via sentence-transformers (all-MiniLM-L6-v2).
+"""Génération d'embeddings via onnxruntime (all-MiniLM-L6-v2).
 
-Le modèle est chargé une seule fois (singleton) car son chargement est coûteux.
+On utilise la fonction d'embedding par défaut de ChromaDB qui tourne sur
+ONNX (bien plus léger que PyTorch) pour éviter les crash OOM sur Render.
 """
 from functools import lru_cache
 from typing import List
 
-MODEL_NAME = "all-MiniLM-L6-v2"
-
-
 @lru_cache(maxsize=1)
 def _get_model():
-    from sentence_transformers import SentenceTransformer
-
-    return SentenceTransformer(MODEL_NAME)
+    from chromadb.utils import embedding_functions
+    # DefaultEmbeddingFunction utilise all-MiniLM-L6-v2 via onnxruntime
+    return embedding_functions.DefaultEmbeddingFunction()
 
 
 def embed_texts(texts: List[str]) -> List[List[float]]:
     """Encode une liste de textes en vecteurs."""
     model = _get_model()
-    vectors = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-    return vectors.tolist()
+    # Le modèle Chroma attend une liste et renvoie une liste de listes
+    return model(texts)
 
 
 def embed_query(text: str) -> List[float]:

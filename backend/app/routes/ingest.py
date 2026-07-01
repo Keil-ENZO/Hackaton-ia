@@ -159,16 +159,27 @@ def ingest(payload: IngestRequest) -> IngestResponse:
                 detail="Aucun contenu indexable trouvé dans ce dépôt.",
             )
 
-        # 5. Embeddings — on vectorise une version ENRICHIE (chemin + symbole en
-        #    tête) pour que les questions en langage naturel matchent le code et
-        #    les fichiers de config, pas seulement la doc. Le document stocké et
-        #    envoyé au LLM reste le texte brut d'origine.
-        texts = [_embed_input(c) for c in all_chunks]
-        vectors = embeddings.embed_texts(texts)
-
-        # 6. Stockage ChromaDB — on remplace l'index précédent (un dépôt à la fois)
+        # 5 & 6. Embeddings et Stockage par BATCH pour économiser la RAM
+        # On évite de tout vectoriser d'un coup pour ne pas dépasser les 512MB de Render
         vector_store.reset()
-        vector_store.add_chunks(all_chunks, vectors)
+        
+        BATCH_SIZE = 50
+        import gc
+
+        for i in range(0, len(all_chunks), BATCH_SIZE):
+            batch_chunks = all_chunks[i : i + BATCH_SIZE]
+            texts = [_embed_input(c) for c in batch_chunks]
+            
+            # Vectorise ce petit lot
+            vectors = embeddings.embed_texts(texts)
+            
+            # Insère dans Chroma
+            vector_store.add_chunks(batch_chunks, vectors)
+            
+            # Force le nettoyage mémoire
+            del texts
+            del vectors
+            gc.collect()
 
     finally:
         # 7. Nettoyage du clone temporaire

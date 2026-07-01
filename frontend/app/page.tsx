@@ -4,21 +4,26 @@ import { useEffect, useState } from "react";
 import IngestPanel from "@/components/IngestPanel";
 import ChatPanel from "@/components/ChatPanel";
 import { getHealth } from "@/lib/api";
+import type { IndexedRepo } from "@/lib/types";
 
 export default function Home() {
-  const [ready, setReady] = useState(false);
-  const [indexedChunks, setIndexedChunks] = useState<number | null>(null);
-  const [repoUrl, setRepoUrl] = useState<string | null>(null);
-  const [repoName, setRepoName] = useState<string | null>(null);
+  const [online, setOnline] = useState(false);
+  const [indexed, setIndexed] = useState<IndexedRepo | null>(null);
 
   // Réveille le backend (Render s'endort après 15 min) et récupère l'état.
   useEffect(() => {
     getHealth()
       .then((h) => {
-        setIndexedChunks(h.indexed_chunks);
-        setReady(h.indexed_chunks > 0);
+        setOnline(true);
+        if (h.indexed_chunks > 0 && h.repo_name && h.repo_url) {
+          setIndexed({
+            repoName: h.repo_name,
+            repoUrl: h.repo_url,
+            chunks: h.indexed_chunks,
+          });
+        }
       })
-      .catch(() => setIndexedChunks(null));
+      .catch(() => setOnline(false));
   }, []);
 
   return (
@@ -31,29 +36,36 @@ export default function Home() {
           Indexe un dépôt Git public et interroge son code — réponses sourcées à
           la ligne près.
         </p>
-        {indexedChunks !== null && (
+        {online && (
           <p className="mt-1 font-mono text-xs text-muted">
-            backend en ligne · {indexedChunks} chunks indexés
-            {repoName && (
+            backend en ligne
+            {indexed ? (
               <>
                 {" · "}
-                <span className="text-source">{repoName}</span>
+                {indexed.chunks} chunks indexés
+                {" · "}
+                <span className="text-source">{indexed.repoName}</span>
               </>
+            ) : (
+              " · aucun dépôt indexé"
             )}
           </p>
         )}
       </header>
 
       <IngestPanel
-        onIndexed={(summary) => {
-          setReady(summary.chunks_created > 0);
-          setIndexedChunks(summary.chunks_created);
-          setRepoUrl(summary.repo_url);
-          setRepoName(summary.repo_name);
-        }}
+        indexed={indexed}
+        onIndexed={(summary) =>
+          setIndexed({
+            repoName: summary.repo_name,
+            repoUrl: summary.repo_url,
+            chunks: summary.chunks_created,
+          })
+        }
+        onCleared={() => setIndexed(null)}
       />
 
-      <ChatPanel ready={ready} repoUrl={repoUrl} />
+      <ChatPanel ready={Boolean(indexed)} repoUrl={indexed?.repoUrl ?? null} />
 
       <footer className="border-t border-border pt-4 text-center font-mono text-xs text-muted">
         DevOnboard Copilot · FastAPI + Next.js + Groq + ChromaDB

@@ -23,6 +23,15 @@ export interface IngestSummary {
 export interface HealthResponse {
   status: string;
   indexed_chunks: number;
+  repo_name?: string | null;
+  repo_url?: string | null;
+}
+
+// Dépôt actuellement indexé, tel que suivi côté front
+export interface IndexedRepo {
+  repoName: string;
+  repoUrl: string;
+  chunks: number;
 }
 
 export interface Message {

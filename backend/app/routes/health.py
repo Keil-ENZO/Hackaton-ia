@@ -13,4 +13,12 @@ def health() -> HealthResponse:
         indexed = vector_store.count()
     except Exception:
         indexed = 0
-    return HealthResponse(status="ok", indexed_chunks=indexed)
+
+    # On n'expose les infos du dépôt que si l'index est réellement peuplé
+    meta = vector_store.get_repo_meta() if indexed > 0 else None
+    return HealthResponse(
+        status="ok",
+        indexed_chunks=indexed,
+        repo_name=(meta or {}).get("repo_name"),
+        repo_url=(meta or {}).get("repo_url"),
+    )

@@ -12,14 +12,22 @@ async function parseError(res: Response): Promise<string> {
   }
 }
 
-export async function ingestRepo(repoUrl: string): Promise<IngestSummary> {
+export async function ingestRepo(
+  repoUrl: string,
+  replace = false,
+): Promise<IngestSummary> {
   const res = await fetch(`${API_URL}/ingest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo_url: repoUrl }),
+    body: JSON.stringify({ repo_url: repoUrl, replace }),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
+}
+
+export async function clearIndex(): Promise<void> {
+  const res = await fetch(`${API_URL}/index`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await parseError(res));
 }
 
 export async function askQuestion(question: string): Promise<ChatResponse> {

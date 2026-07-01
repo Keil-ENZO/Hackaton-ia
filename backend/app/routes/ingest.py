@@ -3,7 +3,7 @@ import os
 
 from fastapi import APIRouter, HTTPException
 
-from app.models import IngestRequest, IngestResponse
+from app.models import ClearResponse, IngestRequest, IngestResponse
 from app.services import embeddings, git_service, vector_store
 from app.services.chunker_code import LANGUAGE_CONFIG, chunk_code
 from app.services.chunker_config import chunk_config
@@ -113,6 +113,17 @@ def ingest(payload: IngestRequest) -> IngestResponse:
     repo_web_url = repo_url[:-4] if repo_url.endswith(".git") else repo_url
     repo_name = "/".join(repo_web_url.rstrip("/").split("/")[-2:])
 
+    # 1bis. Un seul dépôt à la fois : refuse si déjà indexé sans `replace`
+    if not payload.replace and vector_store.count() > 0:
+        current = vector_store.get_repo_meta() or {}
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Un dépôt est déjà indexé ({current.get('repo_name', '?')}). "
+                "Utilisez « Remplacer » ou « Vider » d'abord."
+            ),
+        )
+
     # 2. Clone shallow
     try:
         repo_path = git_service.clone_shallow(repo_url)
@@ -163,7 +174,7 @@ def ingest(payload: IngestRequest) -> IngestResponse:
         # On évite de tout vectoriser d'un coup pour ne pas dépasser les 512MB de Render
         vector_store.reset()
         
-        BATCH_SIZE = 50
+        BATCH_SIZE = 16
         import gc
 
         for i in range(0, len(all_chunks), BATCH_SIZE):
@@ -185,10 +196,23 @@ def ingest(payload: IngestRequest) -> IngestResponse:
         # 7. Nettoyage du clone temporaire
         git_service.cleanup(repo_path)
 
+    languages_sorted = sorted(languages)
+
+    # 8. Mémorise le dépôt courant (pour /health et le front après reload)
+    vector_store.set_repo_meta(
+        {
+            "repo_url": repo_web_url,
+            "repo_name": repo_name,
+            "files_indexed": files_indexed,
+            "chunks_created": len(all_chunks),
+            "languages": languages_sorted,
+        }
+    )
+
     return IngestResponse(
         files_indexed=files_indexed,
         chunks_created=len(all_chunks),
-        languages=sorted(languages),
+        languages=languages_sorted,
         message=(
             f"Dépôt indexé : {files_indexed} fichiers, "
             f"{len(all_chunks)} chunks."
@@ -196,3 +220,10 @@ def ingest(payload: IngestRequest) -> IngestResponse:
         repo_url=repo_web_url,
         repo_name=repo_name,
     )
+
+
+@router.delete("/index", response_model=ClearResponse)
+def clear_index() -> ClearResponse:
+    """Vide l'index et oublie le dépôt courant (bouton « Vider »)."""
+    vector_store.clear()
+    return ClearResponse(status="cleared", indexed_chunks=0)

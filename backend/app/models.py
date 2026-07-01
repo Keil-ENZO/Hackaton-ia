@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field
 
 class IngestRequest(BaseModel):
     repo_url: str = Field(..., description="URL d'un repo GitHub public")
+    replace: bool = Field(
+        default=False,
+        description="Autorise le remplacement d'un dépôt déjà indexé",
+    )
 
 
 class IngestResponse(BaseModel):
@@ -35,5 +39,12 @@ class ChatResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    status: str
+    indexed_chunks: int
+    repo_name: Optional[str] = None  # owner/repo actuellement indexé, si présent
+    repo_url: Optional[str] = None
+
+
+class ClearResponse(BaseModel):
     status: str
     indexed_chunks: int

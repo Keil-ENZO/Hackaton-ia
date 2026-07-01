@@ -1,0 +1,36 @@
+# Lance toute la stack en une commande :  docker compose up --build
+#
+# Prérequis : un fichier .env à la racine avec ta clé Groq (voir .env.example) :
+#   GROQ_API_KEY=gsk_...
+#
+# Frontend : http://localhost:3000   ·   Backend : http://localhost:8000/docs
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY:?Définis GROQ_API_KEY dans un fichier .env a la racine}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
+      - CHROMA_PERSIST_DIR=/data/chroma
+    volumes:
+      - chroma_data:/data/chroma
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # URL appelée depuis le navigateur -> localhost, pas le nom de service Docker
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  chroma_data:
